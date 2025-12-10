@@ -195,6 +195,7 @@ pub struct Context {
     /// Determines if the context is in the main block
     pub is_main_ctx: bool,
     /// Determines if the context is in a trust block
+    #[context]
     pub is_trust_ctx: bool,
     /// Determines if the context is in a test block
     pub is_test_ctx: bool,

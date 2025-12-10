@@ -60,58 +60,60 @@ impl SyntaxModule<ParserMetadata> for Command {
 
 impl TypeCheckModule for Command {
     fn typecheck(&mut self, meta: &mut ParserMetadata) -> SyntaxResult {
-        for interp in self.interps.iter_mut() {
-            interp.typecheck(meta)?;
-        }
-        self.failure_handler.typecheck(meta)
+        self.modifier.use_modifiers(meta, |_, meta| {
+            for interp in self.interps.iter_mut() {
+                interp.typecheck(meta)?;
+            }
+            self.failure_handler.typecheck(meta)
+        })
     }
 }
 
 impl TranslateModule for Command {
     fn translate(&self, meta: &mut TranslateMetadata) -> FragmentKind {
-         let translation = {
-             meta.with_silenced(self.modifier.is_silent || meta.silenced, |meta| {
-                meta.with_sudoed(self.modifier.is_sudo || meta.sudoed, |meta| {
-                    let interps = self.interps.iter()
-                        .map(|item| item.translate(meta).with_quotes(false))
-                        .collect::<Vec<FragmentKind>>();
+        let translation = {
+            meta.with_silenced(self.modifier.is_silent || meta.silenced, |meta| {
+            meta.with_sudoed(self.modifier.is_sudo || meta.sudoed, |meta| {
+                let interps = self.interps.iter()
+                    .map(|item| item.translate(meta).with_quotes(false))
+                    .collect::<Vec<FragmentKind>>();
 
-                    let translation = InterpolableFragment::new(
-                        self.strings.clone(),
-                        interps,
-                        InterpolableRenderType::GlobalContext
-                    ).to_frag();
+                let translation = InterpolableFragment::new(
+                    self.strings.clone(),
+                    interps,
+                    InterpolableRenderType::GlobalContext
+                ).to_frag();
 
-                    let silent = meta.gen_silent().to_frag();
-                    let sudo_prefix = meta.gen_sudo_prefix().to_frag();
-                    ListFragment::new(vec![sudo_prefix, translation, silent])
-                        .with_spaces()
-                        .to_frag()
-                })
+                let silent = meta.gen_silent().to_frag();
+                let sudo_prefix = meta.gen_sudo_prefix().to_frag();
+                ListFragment::new(vec![sudo_prefix, translation, silent])
+                    .with_spaces()
+                    .to_frag()
             })
-         };
+        })
+        };
 
-         let handler = self.failure_handler.translate(meta);
-         let is_statement = !meta.expr_ctx;
-         let has_failure_handler = self.failure_handler.is_parsed;
+        let handler = self.failure_handler.translate(meta);
+        let is_statement = !meta.expr_ctx;
+        let has_failure_handler = self.failure_handler.is_parsed;
 
-         match (is_statement, has_failure_handler) {
-             (true, true) => {
-                 meta.stmt_queue.push_back(translation);
-                 handler
-             }
-             (true, false) => translation,
-             (false, false) => SubprocessFragment::new(translation).to_frag(),
-             (false, true) => {
-                 let id = meta.gen_value_id();
-                 let value = SubprocessFragment::new(translation).to_frag();
-                 let var_stmt = VarStmtFragment::new("command", Type::Text, value).with_global_id(id);
-                 let var_expr = meta.push_ephemeral_variable(var_stmt);
-                 meta.stmt_queue.push_back(handler);
-                 var_expr.to_frag()
-             }
-         }
-     }
+        match (is_statement, has_failure_handler) {
+            (true, true) => {
+                meta.stmt_queue.push_back(translation);
+                handler
+            }
+            (true, false) => translation,
+            (false, false) => SubprocessFragment::new(translation).to_frag(),
+            (false, true) => {
+                let id = meta.gen_value_id();
+                let value = SubprocessFragment::new(translation).to_frag();
+                let var_stmt = VarStmtFragment::new("command", Type::Text, value).with_global_id(id);
+                let var_expr = meta.push_ephemeral_variable(var_stmt);
+                meta.stmt_queue.push_back(handler);
+                var_expr.to_frag()
+            }
+        }
+    }
 }
 
 impl DocumentationModule for Command {
