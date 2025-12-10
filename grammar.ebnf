@@ -22,6 +22,7 @@ statement_global =
     import_all |
     import_ids |
     main |
+    test |
     statement_local ;
 
 (* Block *)
@@ -84,6 +85,7 @@ KEYWORD_SILENT = 'silent' ;
 KEYWORD_STATUS = 'status' ;
 KEYWORD_SUDO = 'sudo' ;
 KEYWORD_SUCCEEDED = 'succeeded' ;
+KEYWORD_TEST = 'test' ;
 KEYWORD_THEN = 'then' ;
 KEYWORD_TRUST = 'trust' ;
 KEYWORD_EXITED = 'exited' ;
@@ -141,7 +143,7 @@ parentheses = '(', expression, ')' ;
 
 (* Failure handler *)
 failure_propagation = '?';
-failure_block = KEYWORD_FAILED, {'(', identifier, ')'}, block ;
+failure_block = KEYWORD_FAILED, [ '(', identifier, ')' ], block ;
 failure_handler = failure_propagation | failure_block ;
 
 (* Success handler *)
@@ -149,7 +151,7 @@ success_block = KEYWORD_SUCCEEDED, block ;
 success_handler = success_block ;
 
 (* Exited handler *)
-exited_block = KEYWORD_EXITED, {'(', identifier, ')'}, block ;
+exited_block = KEYWORD_EXITED, [ '(', identifier, ')' ], block ;
 exited_handler = exited_block ;
 
 (* All handlers combined *)
@@ -213,3 +215,7 @@ builtins_expression =
 builtin_len = KEYWORD_LEN, expression ;
 builtin_lines = KEYWORD_LINES, expression ;
 builtin_nameof = KEYWORD_NAMEOF, expression ;
+
+(* Test *)
+test_name = '"', { ANY_CHAR }, '"' ;
+test = KEYWORD_TEST, [ test_name ], block ;
