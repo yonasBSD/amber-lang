@@ -39,7 +39,15 @@ impl Type {
     }
 
     pub fn is_allowed_in(&self, other: &Type) -> bool {
-        self == other || self.is_subset_of(other)
+        if self == other || self.is_subset_of(other) {
+            return true;
+        }
+
+        if let (Type::Array(const_type), Type::Array(other_type)) = (self, other) {
+            return **const_type == Type::Generic && **other_type != Type::Generic;
+        }
+
+        false
     }
 
     pub fn is_array(&self) -> bool {
@@ -211,6 +219,7 @@ mod tests {
         let b = Type::Array(Box::new(Type::Generic));
 
         assert!(!b.is_subset_of(&a));
+        assert!(b.is_allowed_in(&a));
     }
 
     #[test]
