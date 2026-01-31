@@ -1,6 +1,5 @@
 import * from "std/array"
 import * from "std/fs"
-import * from "std/text"
 
 fun compare(actual: [Text], expected: [Text]): Bool {
     if len(actual) != len(expected) {
@@ -17,22 +16,18 @@ fun compare(actual: [Text], expected: [Text]): Bool {
 main {
     const tmpdir = temp_dir_create("amber-XXXX", true, true)?
     trust {
-        touch("{tmpdir}/1st file with spaces.txt")
-        touch("{tmpdir}/2nd file with spaces.txt")
-        touch("{tmpdir}/file.txt")
-        touch("{tmpdir}/file1.txt")
-        touch("{tmpdir}/file2.txt")
-        touch("{tmpdir}/file99.txt")
-        touch("{tmpdir}/other.csv")
+        // Create files with backslash in name (Unix allows this)
+        $ touch "{tmpdir}/file\\with\\backslash.txt" $
+        $ touch "{tmpdir}/normal.txt" $
     }
+    cd(tmpdir)
 
+    // Test that glob * finds files with backslashes in their names
     const expected = [
-        "{tmpdir}/file.txt",
-        "{tmpdir}/file1.txt",
-        "{tmpdir}/file2.txt",
-        "{tmpdir}/file99.txt",
+        "file\\with\\backslash.txt",
+        "normal.txt",
     ]
-    const actual = file_glob("{tmpdir}/file*.txt")
+    const actual = file_glob("*")
     if compare(actual, expected) {
         echo("Succeeded")
     } else {

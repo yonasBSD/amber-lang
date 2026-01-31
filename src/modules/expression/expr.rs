@@ -51,8 +51,13 @@ use super::parentheses::Parentheses;
 use crate::modules::variable::get::VariableGet;
 use super::ternop::ternary::Ternary;
 use crate::modules::function::invocation::FunctionInvocation;
-use crate::modules::builtin::lines::LinesInvocation;
-use crate::modules::builtin::nameof::Nameof;
+use crate::modules::builtin::{
+    lines::LinesInvocation,
+    nameof::Nameof,
+    ls::Ls,
+    pwd::Pwd,
+    pid::Pid,
+};
 use crate::{
     document_expression,
     parse_expression,
@@ -97,6 +102,9 @@ pub enum ExprType {
     Len(Len),
     Is(Is),
     Access(Access),
+    Pwd(Pwd),
+    Ls(Ls),
+    Pid(Pid),
 }
 
 impl ExprType {
@@ -194,7 +202,7 @@ impl SyntaxModule<ParserMetadata> for Expr {
                 Parentheses, Bool, Number, Integer, Text,
                 Array, Null, Status, Nameof,
                 // Builtin invocation
-                LinesInvocation,
+                LinesInvocation, Pwd, Ls, Pid,
                 // Function invocation
                 FunctionInvocation, Command,
                 // Variable access
@@ -211,7 +219,8 @@ impl TypeCheckModule for Expr {
             Add, And, Array, Bool, Cast, Command, Div, Eq, FunctionInvocation,
             Ge, Gt, Integer, Is, Le, Len, LinesInvocation, Lt, Modulo,
             Mul, Nameof, Neg, Neq, Not, Null, Number, Or, Parentheses,
-            Range, Status, Sub, Ternary, Text, VariableGet, Access
+            Range, Status, Sub, Ternary, Text, VariableGet, Access, Pwd,
+            Ls, Pid
         ]);
         Ok(())
     }
@@ -224,7 +233,8 @@ impl TranslateModule for Expr {
                 Add, And, Array, Bool, Cast, Command, Div, Eq, FunctionInvocation,
                 Ge, Gt, Integer, Is, Le, Len, LinesInvocation, Lt, Modulo,
                 Mul, Nameof, Neg, Neq, Not, Null, Number, Or, Parentheses,
-                Range, Status, Sub, Ternary, Text, VariableGet, Access
+                Range, Status, Sub, Ternary, Text, VariableGet, Access, Pwd,
+                Ls, Pid
             ])
         })
     }
@@ -236,7 +246,8 @@ impl DocumentationModule for Expr {
             Add, And, Array, Bool, Cast, Command, Div, Eq, FunctionInvocation,
             Ge, Gt, Integer, Is, Le, Len, LinesInvocation, Lt, Modulo,
             Mul, Nameof, Neg, Neq, Not, Null, Number, Or, Parentheses,
-            Range, Status, Sub, Ternary, Text, VariableGet, Access
+            Range, Status, Sub, Ternary, Text, VariableGet, Access, Pwd,
+            Ls, Pid
         ])
     }
 }

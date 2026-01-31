@@ -6,10 +6,15 @@ use crate::modules::block::Block;
 #[derive(Debug, Clone, ContextManager)]
 pub struct CommandModifier {
     pub block: Option<Box<Block>>,
+    pub trust_position: Option<PositionInfo>,
+    pub silent_position: Option<PositionInfo>,
+    pub suppress_position: Option<PositionInfo>,
+    pub sudo_position: Option<PositionInfo>,
     #[context]
     pub is_trust: bool,
     pub is_silent: bool,
-    pub is_sudo: bool
+    pub is_suppress: bool,
+    pub is_sudo: bool,
 }
 
 impl CommandModifier {
@@ -18,7 +23,12 @@ impl CommandModifier {
             block: None,
             is_trust: false,
             is_silent: false,
-            is_sudo: false
+            is_suppress: false,
+            is_sudo: false,
+            trust_position: None,
+            silent_position: None,
+            suppress_position: None,
+            sudo_position: None,
         }
     }
 
@@ -48,21 +58,38 @@ impl CommandModifier {
                                 return error!(meta, Some(tok.clone()), "You already declared `trust` modifier before");
                             }
                             self.is_trust = true;
+                            self.trust_position = Some(PositionInfo::from_token(meta, Some(tok.clone())));
                             meta.increment_index();
                         },
                         "silent" => {
                             if self.is_silent {
                                 return error!(meta, Some(tok.clone()), "You already declared `silent` modifier before");
                             }
+                            if self.is_suppress {
+                                return error!(meta, Some(tok.clone()), "You already declared `suppress` modifier before. You can't use them in conjunction.");
+                            }
                             self.is_silent = true;
+                            self.silent_position = Some(PositionInfo::from_token(meta, Some(tok.clone())));
                             meta.increment_index();
                         },
+                        "suppress" => {
+                            if self.is_silent {
+                                return error!(meta, Some(tok.clone()), "You already declared `silent` modifier before. You can't use them in conjunction.");
+                            }
+                            if self.is_suppress {
+                                return error!(meta, Some(tok.clone()), "You already declared `suppress` modifier before");
+                            }
+                            self.is_suppress = true;
+                            self.suppress_position = Some(PositionInfo::from_token(meta, Some(tok.clone())));
+                            meta.increment_index();
+                        }
                         "sudo" => {
                             if self.is_sudo {
                                 return error!(meta, Some(tok.clone()), "Command modifier 'sudo' has already been declared");
                             }
                             self.is_sudo = true;
                             meta.sudo_used = true;
+                            self.sudo_position = Some(PositionInfo::from_token(meta, Some(tok.clone())));
                             meta.increment_index();
                         },
                         _ => break
@@ -83,7 +110,12 @@ impl SyntaxModule<ParserMetadata> for CommandModifier {
             block: Some(Box::new(Block::new().with_no_indent())),
             is_trust: false,
             is_silent: false,
-            is_sudo: false
+            is_suppress: false,
+            is_sudo: false,
+            trust_position: None,
+            silent_position: None,
+            suppress_position: None,
+            sudo_position: None,
         }
     }
 
@@ -117,9 +149,11 @@ impl TranslateModule for CommandModifier {
     fn translate(&self, meta: &mut TranslateMetadata) -> FragmentKind {
         if let Some(block) = &self.block {
             meta.silenced = self.is_silent;
+            meta.suppress = self.is_suppress;
             meta.sudoed = self.is_sudo;
             let result = block.translate(meta);
             meta.silenced = false;
+            meta.suppress = false;
             meta.sudoed = false;
             result
         } else {
