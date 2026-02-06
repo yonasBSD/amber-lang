@@ -24,6 +24,7 @@ fn exit_with_code() {
 
     let code = compile_code(code);
     let mut cmd = Command::new("bash")
+        .arg("--norc")
         .arg("-c")
         .arg(code)
         .stdout(Stdio::null())

@@ -15,6 +15,7 @@ pub mod optimizing;
 pub mod postprocessor;
 mod stdlib;
 mod test_mode;
+mod testing;
 pub mod translating;
 mod validity;
 mod warning;
@@ -79,6 +80,7 @@ pub fn compile_code<T: Into<String>>(code: T) -> String {
 
 pub fn eval_bash<T: Into<String>>(code: T) -> (String, String) {
     let mut cmd = Command::new("bash");
+    cmd.arg("--norc");
     cmd.arg("-c");
     cmd.arg(code.into());
     cmd.stdout(Stdio::piped());

@@ -192,7 +192,7 @@ impl TranslateModule for Ls {
         meta.stmt_queue.extend([
             fragments!(
                 raw_fragment!(
-                    "IFS=$'\\n' read -rd '' -a {} < <(IFS=$'\\n';",
+                    "IFS=$'\\n' read -rd '' -a {} < <(LC_ALL=C IFS=$'\\n';",
                     var_expr.get_name()
                 ),
                 sudo_prefix,
