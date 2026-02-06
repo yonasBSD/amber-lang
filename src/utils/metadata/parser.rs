@@ -113,6 +113,9 @@ impl ParserMetadata {
     pub fn add_var(&mut self, mut var: VariableDecl) -> Option<usize> {
         let global_id = self.gen_var_id();
         var.global_id = Some(global_id);
+        if var.is_public {
+            self.context.pub_vars.push(var.clone());
+        }
         let scope = self.context.scopes.last_mut().unwrap();
         scope.add_var(var);
         Some(global_id)
@@ -214,6 +217,15 @@ impl ParserMetadata {
         // Add the function to the current scope
         let scope = self.context.scopes.last_mut().unwrap();
         scope.add_fun(fun).then_some(global_id)
+    }
+
+    pub fn add_var_declaration_existing(&mut self, var: VariableDecl) -> Option<usize> {
+        let global_id = self.gen_var_id();
+        if var.is_public {
+            self.context.pub_vars.push(var.clone());
+        }
+        let scope = self.context.scopes.last_mut().unwrap();
+        scope.add_var(var).then_some(global_id)
     }
 
     /// Adds a function instance to the cache

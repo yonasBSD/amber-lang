@@ -1,10 +1,11 @@
 use super::context::FunctionDecl;
-use crate::modules::block::Block;
+use crate::{modules::block::Block, utils::context::VariableDecl};
 
 #[derive(Debug, Clone)]
 pub struct FileMetadata {
     pub block: Block,
     pub pub_funs: Vec<FunctionDecl>,
+    pub pub_vars: Vec<VariableDecl>,
 }
 
 #[derive(Debug, Clone)]
@@ -101,17 +102,25 @@ impl ImportCache {
         path: Option<String>,
         block: Block,
         pub_funs: Vec<FunctionDecl>,
+        pub_vars: Vec<VariableDecl>,
     ) {
         let path_id = self.get_path_id(&Self::get_path(path)).unwrap();
-        self.files[path_id].metadata = Some(FileMetadata { block, pub_funs });
+        self.files[path_id].metadata = Some(FileMetadata {
+            block,
+            pub_funs,
+            pub_vars,
+        });
     }
 
-    pub fn get_import_pub_funs(&mut self, path: Option<String>) -> Option<Vec<FunctionDecl>> {
+    pub fn get_imports(
+        &mut self,
+        path: Option<String>,
+    ) -> Option<(Vec<FunctionDecl>, Vec<VariableDecl>)> {
         self.get_path_id(&Self::get_path(path)).and_then(|path_id| {
             self.files[path_id]
                 .metadata
                 .as_ref()
-                .map(|meta| meta.pub_funs.clone())
+                .map(|meta| (meta.pub_funs.clone(), meta.pub_vars.clone()))
         })
     }
 

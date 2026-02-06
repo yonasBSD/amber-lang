@@ -92,6 +92,7 @@ pub struct VariableDecl {
     pub is_const: bool,
     pub is_used: bool,
     pub is_modified: bool,
+    pub is_public: bool,
     pub warn: Option<VariableDeclWarn>,
 }
 
@@ -105,6 +106,7 @@ impl VariableDecl {
             is_const: false,
             is_used: false,
             is_modified: false,
+            is_public: false,
             warn: None,
         }
     }
@@ -121,6 +123,11 @@ impl VariableDecl {
 
     pub fn with_warn(mut self, warn: VariableDeclWarn) -> Self {
         self.warn = Some(warn);
+        self
+    }
+
+    pub fn with_public(mut self, is_public: bool) -> Self {
+        self.is_public = is_public;
         self
     }
 }
@@ -140,8 +147,9 @@ impl ScopeUnit {
     /* Variables */
 
     /// Persists a variable declaration in the scope
-    pub fn add_var(&mut self, var: VariableDecl) {
-        self.vars.insert(var.name.clone(), var);
+    pub fn add_var(&mut self, var: VariableDecl) -> bool {
+        let name = var.name.clone();
+        self.vars.insert(name, var).is_none()
     }
 
     /// Fetches a variable declaration from the scope
@@ -199,6 +207,8 @@ pub struct Context {
     pub is_test_ctx: bool,
     /// This is a list of ids of all the public functions in the file
     pub pub_funs: Vec<FunctionDecl>,
+    /// This is a list of all the public variables in the file
+    pub pub_vars: Vec<VariableDecl>,
     /// The return type of the currently parsed function
     pub fun_ret_type: Option<Type>,
     /// List of compiler flags
@@ -221,6 +231,7 @@ impl Context {
             is_trust_ctx: false,
             is_test_ctx: false,
             pub_funs: vec![],
+            pub_vars: vec![],
             fun_ret_type: None,
             cc_flags: HashSet::new(),
         }
