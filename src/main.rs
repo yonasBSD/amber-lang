@@ -25,7 +25,6 @@ use similar_string::find_best_similarity;
 use std::error::Error;
 use std::io::{prelude::*, stdin};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::{fs, io};
 
 fn get_version() -> &'static str {
@@ -214,12 +213,7 @@ fn handle_err(err: std::io::Error) -> ! {
 #[allow(unused_must_use)]
 pub fn render_dash() {
     let str = "%.s─".dimmed();
-    Command::new("bash")
-        .arg("-c")
-        .arg(format!("printf {str} $(seq 1 $(tput cols))"))
-        .spawn()
-        .unwrap()
-        .wait();
+    AmberCompiler::execute(format!("printf {str} $(seq 1 $(tput cols))"), vec![]);
     println!();
 }
 

@@ -8,7 +8,7 @@ use crate::optimizer::optimize_fragments;
 use crate::rules;
 use crate::translate::check_all_blocks;
 use crate::translate::module::TranslateModule;
-use crate::utils::{pluralize, ParserMetadata, TranslateMetadata};
+use crate::utils::{pluralize, ParserMetadata, ShellType, TranslateMetadata};
 use colored::Colorize;
 use heraclitus_compiler::prelude::*;
 use itertools::Itertools;
@@ -210,7 +210,7 @@ impl AmberCompiler {
         result
     }
 
-    fn gen_header(&self) -> String {
+    fn gen_header(&self, target_shell: ShellType) -> String {
         let header_template = if let Some(dynamic) = &self.options.header_path {
             fs::read_to_string(dynamic).unwrap_or_else(|_| {
                 let msg = format!("Couldn't read the dynamic header file from path '{dynamic}'");
@@ -220,8 +220,14 @@ impl AmberCompiler {
         } else {
             include_str!("header.sh").trim_end().to_string()
         };
-
-        header_template.replace("{{ version }}", get_version())
+        let shell_name = match target_shell {
+            ShellType::Bash => "bash",
+            ShellType::Zsh => "zsh",
+            ShellType::Ksh => "ksh",
+        };
+        header_template
+            .replace("{{ version }}", get_version())
+            .replace("{{ shell }}", shell_name)
     }
 
     fn gen_footer(&self) -> String {
@@ -238,21 +244,53 @@ impl AmberCompiler {
         footer_template.replace("{{ version }}", get_version())
     }
 
-    fn gen_sudo_preamble(&self) -> FragmentKind {
-        let condition = r#"[ "$EUID" -ne 0 ] && { { command -v sudo >/dev/null 2>&1 && __sudo=sudo; } || { command -v doas >/dev/null 2>&1 && __sudo=doas; }; }"#;
-        RawFragment::new(condition).to_frag()
+    fn gen_preamble(
+        &self,
+        sudo_used: bool,
+        shellname_used: bool,
+        target_shell: &ShellType,
+    ) -> FragmentKind {
+        let mut preamble = Vec::new();
+        match target_shell {
+            ShellType::Bash => (),
+            ShellType::Zsh => {
+                // if the shell is ZSH:
+                // - emulate ksh (ksh arrays, word splitting, ...) which matches more with bash
+                // enable BSD_echo; prevents backslashes from being interpreted twice (causes "\\\\" to return "\")
+                preamble.push(RawFragment::new(r#"emulate ksh"#).to_frag());
+                preamble.push(RawFragment::new(r#"setopt BSD_echo"#).to_frag());
+                preamble.push(RawFragment::new(r#"__read_args='-A'"#).to_frag());
+            }
+            ShellType::Ksh => {
+                // if the shell is KSH:
+                // - enable job control
+                preamble.push(RawFragment::new(r#"set -m"#).to_frag());
+            }
+        }
+        if sudo_used {
+            preamble.push(RawFragment::new(include_str!("preambles/sudo.sh").trim_end()).to_frag());
+        }
+        if shellname_used {
+            preamble.push(
+                RawFragment::new(include_str!("preambles/shellname.sh").trim_end()).to_frag(),
+            );
+        }
+        BlockFragment::new(preamble, false).to_frag()
     }
 
     pub fn translate(&self, block: Block, meta: ParserMetadata) -> Result<String, Message> {
         let sudo_used = meta.sudo_used;
+        let shellname_used = meta.shellname_used;
         let ast_forest = self.get_sorted_ast_forest(block, &meta);
         let mut meta_translate = TranslateMetadata::new(meta, &self.options);
         let time = Instant::now();
         let mut result = BlockFragment::new(Vec::new(), false);
-
-        if sudo_used {
-            result.append(self.gen_sudo_preamble());
-        }
+        // Add preamble that contains all code that should be executed before the main code
+        result.append(self.gen_preamble(
+            sudo_used,
+            shellname_used,
+            &meta_translate.target.shell,
+        ));
 
         for (_path, block) in ast_forest {
             result.append(block.translate(&mut meta_translate));
@@ -296,7 +334,7 @@ impl AmberCompiler {
 
         Ok(format!(
             "{}\n{}\n{}",
-            self.gen_header(),
+            self.gen_header(meta_translate.target.shell),
             result,
             self.gen_footer()
         ))
@@ -405,7 +443,7 @@ impl AmberCompiler {
     }
 
     pub fn execute(mut code: String, args: Vec<String>) -> Result<ExitStatus, std::io::Error> {
-        if let Some(mut command) = Self::find_bash() {
+        if let Some(mut command) = Self::find_shell() {
             if !args.is_empty() {
                 let args = args
                     .into_iter()
@@ -416,7 +454,7 @@ impl AmberCompiler {
             }
             command.arg("-c").arg(code).spawn()?.wait()
         } else {
-            let error = std::io::Error::new(ErrorKind::NotFound, "Failed to find Bash");
+            let error = std::io::Error::new(ErrorKind::NotFound, "Failed to find shell");
             Err(error)
         }
     }
@@ -434,7 +472,7 @@ impl AmberCompiler {
     pub fn test_eval(&mut self) -> Result<String, Message> {
         self.options.no_proc = vec!["*".into()];
         self.compile().map_or_else(Err, |(warnings, code)| {
-            if let Some(mut command) = Self::find_bash() {
+            if let Some(mut command) = Self::find_shell() {
                 let child = command
                     .arg("-c")
                     .arg::<&str>(code.as_ref())
@@ -464,7 +502,7 @@ impl AmberCompiler {
     }
 
     #[cfg(windows)]
-    pub fn find_bash() -> Option<Command> {
+    pub fn find_shell() -> Option<Command> {
         if let Some(paths) = env::var_os("PATH") {
             for path in env::split_paths(&paths) {
                 let path = path.join("bash.exe");
@@ -479,18 +517,43 @@ impl AmberCompiler {
 
     /// Return bash command. In some situations, mainly for testing purposes, this can return a command, for example, containerized execution which is not bash but behaves like bash.
     #[cfg(not(windows))]
-    pub fn find_bash() -> Option<Command> {
+    pub fn find_shell() -> Option<Command> {
         if env::var("AMBER_TEST_STRATEGY").is_ok_and(|value| value == "docker") {
             let mut command = Command::new("docker");
             let args_string = env::var("AMBER_TEST_ARGS")
                 .expect("Please pass docker arguments in AMBER_TEST_ARGS environment variable.");
-            let args: Vec<&str> = args_string.split_whitespace().collect();
+            let mut args: Vec<&str> = args_string.split_whitespace().collect();
+            if args.first() == Some(&"exec") && !args.contains(&"-i") {
+                // `docker exec` needs `-i` to pass piped stdin through to interactive Amber input tests.
+                args.insert(1, "-i");
+            }
             command.args(args);
             Some(command)
         } else {
+            // Detect default shell from SHELL env var, use it if it's bash, zsh or ksh
+            let shell = env::var("SHELL")
+                .ok()
+                .and_then(|s| s.rsplit('/').next().map(String::from))
+                .filter(|s| s == "bash" || s == "zsh" || s == "ksh")
+                .unwrap_or_else(|| String::from("bash"));
             let mut command = Command::new("/usr/bin/env");
-            command.arg("bash");
+            command.arg(shell);
             Some(command)
+        }
+    }
+    #[cfg(not(windows))]
+    pub fn find_shell_type() -> ShellType {
+        let shell = env::var("SHELL")
+            .ok()
+            .and_then(|s| s.rsplit('/').next().map(String::from))
+            .filter(|s| s == "bash" || s == "zsh" || s == "ksh")
+            .unwrap_or_else(|| String::from("bash"));
+
+        match shell.as_ref() {
+            "bash" => ShellType::Bash,
+            "zsh" => ShellType::Zsh,
+            "ksh" => ShellType::Ksh,
+            _ => ShellType::Bash,
         }
     }
 }

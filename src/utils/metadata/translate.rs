@@ -1,8 +1,9 @@
 use std::cmp;
 use std::collections::VecDeque;
+use std::fmt;
 
 use super::ParserMetadata;
-use crate::compiler::CompilerOptions;
+use crate::compiler::{AmberCompiler, CompilerOptions};
 use crate::modules::prelude::*;
 use crate::modules::types::Type;
 use crate::raw_fragment;
@@ -14,8 +15,31 @@ use amber_meta::ContextManager;
 
 const INDENT_SPACES: &str = "    ";
 
+pub enum ShellType {
+    Bash,
+    Zsh,
+    Ksh,
+}
+
+impl fmt::Display for ShellType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let shell = match self {
+            ShellType::Bash => "bash",
+            ShellType::Zsh => "zsh",
+            ShellType::Ksh => "ksh",
+        };
+        write!(f, "{shell}")
+    }
+}
+
+pub struct TargetShell {
+    pub shell: ShellType,
+}
+
 #[derive(ContextManager)]
 pub struct TranslateMetadata {
+    /// Contains information about specified target output.
+    pub target: TargetShell,
     /// The arithmetic module that is used to evaluate math.
     pub arith_module: ArithType,
     /// A cache of defined functions - their body and metadata.
@@ -53,7 +77,11 @@ pub struct TranslateMetadata {
 
 impl TranslateMetadata {
     pub fn new(meta: ParserMetadata, options: &CompilerOptions) -> Self {
+        let target_shell = AmberCompiler::find_shell_type();
         TranslateMetadata {
+            target: TargetShell {
+                shell: target_shell,
+            },
             arith_module: ArithType::BcSed,
             fun_cache: meta.fun_cache,
             fun_meta: None,

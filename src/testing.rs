@@ -6,7 +6,6 @@ use rayon::prelude::*;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 
 pub fn find_amber_files(dir: &PathBuf, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
     if dir.is_dir() {
@@ -137,12 +136,8 @@ pub fn handle_test(command: TestCommand) -> Result<i32, Box<dyn Error>> {
             );
 
             let result = match compiler.compile() {
-                Ok((_, bash_code)) => {
-                    match Command::new("bash")
-                        .args(["--norc", "-c"])
-                        .arg(&bash_code)
-                        .output()
-                    {
+                Ok((_, bash_code)) => match AmberCompiler::find_shell() {
+                    Some(mut command) => match command.arg("-c").arg(&bash_code).output() {
                         Ok(output) => {
                             if output.status.success() {
                                 Ok(())
@@ -161,9 +156,13 @@ pub fn handle_test(command: TestCommand) -> Result<i32, Box<dyn Error>> {
                                 }
                             }
                         }
-                        Err(e) => Err(Message::new_err_msg(format!("Error executing bash: {}", e))),
-                    }
-                }
+                        Err(e) => Err(Message::new_err_msg(format!(
+                            "Error executing shell: {}",
+                            e
+                        ))),
+                    },
+                    None => Err(Message::new_err_msg("Failed to find shell command")),
+                },
                 Err(e) => Err(e),
             };
 

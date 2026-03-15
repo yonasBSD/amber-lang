@@ -31,6 +31,7 @@ fn test_translation(input: &str) {
         .expect("Provided directory")
         .to_str()
         .expect("Cannot translate to string");
+    let filename = format!("{filename}__{}", AmberCompiler::find_shell_type());
     assert_snapshot!(filename, ast);
 }
 
@@ -74,11 +75,11 @@ main {
 }
 
 #[test]
-fn test_find_bash() {
-    let bash_cmd = AmberCompiler::find_bash();
+fn test_find_shell() {
+    let bash_cmd = AmberCompiler::find_shell();
     assert!(
         bash_cmd.is_some(),
-        "find_bash should return Some(Command) on non-Windows"
+        "find_shell should return Some(Command) on non-Windows"
     );
 }
 

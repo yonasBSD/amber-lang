@@ -115,7 +115,7 @@ impl Range {
                 " -gt ",
                 to_var.clone(),
                 " ]; then ",
-                "(seq -f \"%.0f\" -- ",
+                "{ seq -f \"%.0f\" -- ",
                 from_var.clone(),
                 " -1 ",
                 reverse_to.clone(),
@@ -123,13 +123,13 @@ impl Range {
                 from_var.clone(),
                 " -1 ",
                 reverse_to,
-                ") | paste -sd \" \" -; ",
+                "; } | paste -sd \" \" -; ",
                 "elif [ ",
                 from_var.clone(),
                 " -lt ",
                 to_var.clone(),
                 " ]; then ",
-                "(seq -f \"%.0f\" -- ",
+                "{ seq -f \"%.0f\" -- ",
                 from_var.clone(),
                 " ",
                 forward_to.clone(),
@@ -137,7 +137,7 @@ impl Range {
                 from_var.clone(),
                 " ",
                 forward_to,
-                ") | paste -sd \" \" -; fi"
+                "; } | paste -sd \" \" -; fi"
             )
         } else {
             fragments!(
@@ -146,7 +146,7 @@ impl Range {
                 " -gt ",
                 to_var.clone(),
                 " ]; then ",
-                "(seq -f \"%.0f\" -- ",
+                "{ seq -f \"%.0f\" -- ",
                 from_var.clone(),
                 " -1 ",
                 reverse_to.clone(),
@@ -154,8 +154,8 @@ impl Range {
                 from_var.clone(),
                 " -1 ",
                 reverse_to,
-                ") | paste -sd \" \" -; ",
-                "else (seq -f \"%.0f\" -- ",
+                "; } | paste -sd \" \" -; ",
+                "else { seq -f \"%.0f\" -- ",
                 from_var.clone(),
                 " ",
                 forward_to.clone(),
@@ -163,7 +163,7 @@ impl Range {
                 from_var.clone(),
                 " ",
                 forward_to,
-                ") | paste -sd \" \" -; fi"
+                "; } | paste -sd \" \" -; fi"
             )
         };
 
@@ -179,7 +179,7 @@ impl Range {
     fn generate_forward_seq(&self, from_val: isize, to_val: isize) -> FragmentKind {
         let to_adjusted = if self.neq { to_val - 1 } else { to_val };
         let expr = fragments!(
-            "(seq -f \"%.0f\" -- ",
+            "{ seq -f \"%.0f\" -- ",
             raw_fragment!("{}", from_val),
             " ",
             raw_fragment!("{}", to_adjusted),
@@ -187,7 +187,7 @@ impl Range {
             raw_fragment!("{}", from_val),
             " ",
             raw_fragment!("{}", to_adjusted),
-            ") | paste -sd \" \" -"
+            "; } | paste -sd \" \" -"
         );
         SubprocessFragment::new(expr).to_frag()
     }
@@ -196,7 +196,7 @@ impl Range {
     fn generate_reverse_seq(&self, from_val: isize, to_val: isize) -> FragmentKind {
         let to_adjusted = if self.neq { to_val + 1 } else { to_val };
         let expr = fragments!(
-            "(seq -f \"%.0f\" -- ",
+            "{ seq -f \"%.0f\" -- ",
             raw_fragment!("{}", from_val),
             " -1 ",
             raw_fragment!("{}", to_adjusted),
@@ -204,7 +204,7 @@ impl Range {
             raw_fragment!("{}", from_val),
             " -1 ",
             raw_fragment!("{}", to_adjusted),
-            ") | paste -sd \" \" -"
+            "; } | paste -sd \" \" -"
         );
         SubprocessFragment::new(expr).to_frag()
     }
@@ -249,8 +249,9 @@ impl Range {
             let upper_id = meta.gen_value_id();
             let mut upper_val = self.to.translate(meta);
             if !self.neq {
-                upper_val = ArithmeticFragment::new(Some(upper_val), ArithOp::Add, Some(fragments!("1")))
-                .to_frag();
+                upper_val =
+                    ArithmeticFragment::new(Some(upper_val), ArithOp::Add, Some(fragments!("1")))
+                        .to_frag();
             }
             let upper_var_stmt =
                 VarStmtFragment::new("slice_upper", Type::Int, upper_val).with_global_id(upper_id);
@@ -280,8 +281,7 @@ impl Range {
         let length = {
             let length_id = meta.gen_value_id();
             let length_val =
-                ArithmeticFragment::new(Some(upper), ArithOp::Sub, Some(offset.clone()))
-                .to_frag();
+                ArithmeticFragment::new(Some(upper), ArithOp::Sub, Some(offset.clone())).to_frag();
             let length_var_stmt = VarStmtFragment::new("slice_length", Type::Int, length_val)
                 .with_global_id(length_id);
             let length_var_expr = meta.push_ephemeral_variable(length_var_stmt).to_frag();
