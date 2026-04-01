@@ -483,7 +483,7 @@ impl AmberCompiler {
     }
 
     #[cfg(test)]
-    pub fn test_eval(&mut self) -> Result<String, Message> {
+    pub fn test_eval(&mut self) -> Result<(String, ExitStatus), Message> {
         self.options.no_proc = vec!["*".into()];
         self.compile().map_or_else(Err, |(warnings, code)| {
             if let Some(mut command) = Self::find_shell(self.options.target) {
@@ -507,7 +507,7 @@ impl AmberCompiler {
                         warn_log + "\n"
                     }
                 };
-                Ok(warning_log + &output + &err_output)
+                Ok((warning_log + &output + &err_output, child.status))
             } else {
                 let message = Message::new_err_msg("Failed to find Bash");
                 Err(message)
