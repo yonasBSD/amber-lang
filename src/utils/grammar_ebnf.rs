@@ -1,4 +1,7 @@
-(*
+use crate::modules::keywords::{iter_keywords, KeywordKind};
+use std::collections::HashSet;
+
+const GRAMMAR_EBNF: &str = r#"(*
     This is a basic grammar declaration for Amber written in EBNF.
     This syntax does not include features that are not fully stable yet.
 *)
@@ -50,61 +53,7 @@ expression =
     unary_operation |
     expression_index ;
 
-(* Keywords - auto-generated at build time *)
-KEYWORD_AND = 'and' ;
-KEYWORD_AS = 'as' ;
-KEYWORD_AWAIT = 'await' ;
-KEYWORD_BREAK = 'break' ;
-KEYWORD_CD = 'cd' ;
-KEYWORD_CLEAR = 'clear' ;
-KEYWORD_CONST = 'const' ;
-KEYWORD_CONTINUE = 'continue' ;
-KEYWORD_CP = 'cp' ;
-KEYWORD_DISOWN = 'disown' ;
-KEYWORD_ECHO = 'echo' ;
-KEYWORD_ELSE = 'else' ;
-KEYWORD_EXIT = 'exit' ;
-KEYWORD_EXITED = 'exited' ;
-KEYWORD_FAIL = 'fail' ;
-KEYWORD_FAILED = 'failed' ;
-KEYWORD_FOR = 'for' ;
-KEYWORD_FROM = 'from' ;
-KEYWORD_FUN = 'fun' ;
-KEYWORD_IF = 'if' ;
-KEYWORD_IMPORT = 'import' ;
-KEYWORD_IN = 'in' ;
-KEYWORD_IS = 'is' ;
-KEYWORD_LEN = 'len' ;
-KEYWORD_LET = 'let' ;
-KEYWORD_LINES = 'lines' ;
-KEYWORD_LOCK = 'lock' ;
-KEYWORD_LOOP = 'loop' ;
-KEYWORD_LS = 'ls' ;
-KEYWORD_MAIN = 'main' ;
-KEYWORD_MV = 'mv' ;
-KEYWORD_NAMEOF = 'nameof' ;
-KEYWORD_NOT = 'not' ;
-KEYWORD_OR = 'or' ;
-KEYWORD_PID = 'pid' ;
-KEYWORD_PUB = 'pub' ;
-KEYWORD_PWD = 'pwd' ;
-KEYWORD_REF = 'ref' ;
-KEYWORD_RETURN = 'return' ;
-KEYWORD_RM = 'rm' ;
-KEYWORD_SHELLNAME = 'shellname' ;
-KEYWORD_SHELLVERSION = 'shellversion' ;
-KEYWORD_SILENT = 'silent' ;
-KEYWORD_SLEEP = 'sleep' ;
-KEYWORD_STATUS = 'status' ;
-KEYWORD_SUCCEEDED = 'succeeded' ;
-KEYWORD_SUDO = 'sudo' ;
-KEYWORD_SUPPRESS = 'suppress' ;
-KEYWORD_TEST = 'test' ;
-KEYWORD_THEN = 'then' ;
-KEYWORD_TOUCH = 'touch' ;
-KEYWORD_TRUST = 'trust' ;
-KEYWORD_UNSAFE = 'unsafe' ;
-KEYWORD_WHILE = 'while' ;
+    (* Keywords - auto-generated at build time *)
 
 (* Terminals *)
 ANY_CHAR = ? any character ? ;
@@ -218,34 +167,127 @@ comment = '//', { ANY_CHAR }, '\n' ;
 
 
 
-builtins_statement = builtin_await | builtin_cd | builtin_clear | builtin_cp | builtin_disown | builtin_echo | builtin_exit | builtin_lock | builtin_mv | builtin_rm | builtin_sleep | builtin_touch ;
+"#;
 
-(* Builtins *)
-builtin_await = KEYWORD_AWAIT, expression ;
-builtin_cd = KEYWORD_CD, expression ;
-builtin_clear = KEYWORD_CLEAR ;
-builtin_cp = KEYWORD_CP, expression ;
-builtin_disown = KEYWORD_DISOWN, expression ;
-builtin_echo = KEYWORD_ECHO, expression ;
-builtin_exit = KEYWORD_EXIT, expression ;
-builtin_lock = KEYWORD_LOCK, expression ;
-builtin_mv = KEYWORD_MV, expression ;
-builtin_rm = KEYWORD_RM, expression ;
-builtin_sleep = KEYWORD_SLEEP, expression ;
-builtin_touch = KEYWORD_TOUCH, expression ;
+pub fn generate_grammar_ebnf() -> String {
+    // Collect unique keywords using HashSet to deduplicate
+    let keywords: HashSet<&str> = iter_keywords()
+        .filter(|r| r.kind != KeywordKind::BinaryOp || matches!(r.keyword, "and" | "or"))
+        .map(|r| r.keyword)
+        .collect();
 
-builtins_expression = builtin_len | builtin_lines | builtin_ls | builtin_nameof | builtin_pid | builtin_pwd | builtin_shellname | builtin_shellversion ;
+    // Collect builtin statement and expression keywords separately
+    let mut builtin_stmt_keywords: Vec<&str> = iter_keywords()
+        .filter(|r| r.kind == KeywordKind::BuiltinStmt)
+        .map(|r| r.keyword)
+        .collect();
+    builtin_stmt_keywords.sort_unstable();
 
-builtin_len = KEYWORD_LEN, expression ;
-builtin_lines = KEYWORD_LINES, expression ;
-builtin_ls = KEYWORD_LS, expression ;
-builtin_nameof = KEYWORD_NAMEOF, expression ;
-builtin_pid = KEYWORD_PID ;
-builtin_pwd = KEYWORD_PWD, expression ;
-builtin_shellname = KEYWORD_SHELLNAME ;
-builtin_shellversion = KEYWORD_SHELLVERSION ;
+    let mut builtin_expr_keywords: Vec<&str> = iter_keywords()
+        .filter(|r| r.kind == KeywordKind::BuiltinExpr)
+        .map(|r| r.keyword)
+        .collect();
+    builtin_expr_keywords.sort_unstable();
 
+    // Collect unique keywords using HashSet to deduplicate
+    let mut keyword_defs = String::new();
+    let mut keyword_list: Vec<_> = keywords.into_iter().collect();
+    // Sort for deterministic output
+    keyword_list.sort();
+    for kw in keyword_list {
+        keyword_defs.push_str(&format!("KEYWORD_{} = '{}' ;\n", kw.to_uppercase(), kw));
+    }
+    keyword_defs.push('\n');
 
+    // Generate individual builtin rules for statement builtins
+    let mut builtin_stmt_rules = String::from("(* Builtins *)\n");
+    for kw in &builtin_stmt_keywords {
+        let kw_upper = kw.to_uppercase();
+        let builtin_name = format!("builtin_{}", kw);
+        match *kw {
+            "clear" => {
+                builtin_stmt_rules.push_str(&format!("{} = KEYWORD_{} ;\n", builtin_name, kw_upper))
+            }
+            _ => builtin_stmt_rules.push_str(&format!(
+                "{} = KEYWORD_{}, expression ;\n",
+                builtin_name, kw_upper
+            )),
+        }
+    }
+    builtin_stmt_rules.push('\n');
+
+    // Generate individual builtin rules for expression builtins
+    let mut builtin_expr_rules = String::new();
+    for kw in &builtin_expr_keywords {
+        let kw_upper = kw.to_uppercase();
+        let builtin_name = format!("builtin_{}", kw);
+        match *kw {
+            "pid" | "shellname" | "shellversion" => {
+                builtin_expr_rules.push_str(&format!("{} = KEYWORD_{} ;\n", builtin_name, kw_upper))
+            }
+            _ => builtin_expr_rules.push_str(&format!(
+                "{} = KEYWORD_{}, expression ;\n",
+                builtin_name, kw_upper
+            )),
+        }
+    }
+    builtin_expr_rules.push('\n');
+
+    // Generate builtins_statement rule
+    let builtins_stmt_rule = if builtin_stmt_keywords.is_empty() {
+        String::new()
+    } else {
+        let alternatives: Vec<String> = builtin_stmt_keywords
+            .iter()
+            .map(|kw| format!("builtin_{}", kw))
+            .collect();
+        format!("builtins_statement = {} ;\n\n", alternatives.join(" | "))
+    };
+
+    // Generate builtins_expression rule
+    let builtins_expr_rule = if builtin_expr_keywords.is_empty() {
+        String::new()
+    } else {
+        let alternatives: Vec<String> = builtin_expr_keywords
+            .iter()
+            .map(|kw| format!("builtin_{}", kw))
+            .collect();
+        format!("builtins_expression = {} ;\n\n", alternatives.join(" | "))
+    };
+
+    let keywords_start = "(* Keywords - auto-generated at build time *)";
+    let keywords_section_start = GRAMMAR_EBNF
+        .find(keywords_start)
+        .expect("Keywords marker not found");
+    // Find the start of the line containing the comment
+    let line_start = GRAMMAR_EBNF[..keywords_section_start]
+        .rfind('\n')
+        .map_or(0, |pos| pos + 1);
+    let before_keywords = &GRAMMAR_EBNF[..line_start];
+    let after_terminals = GRAMMAR_EBNF
+        .find("(* Terminals *)")
+        .map(|end| &GRAMMAR_EBNF[end..])
+        .expect("Terminals marker not found");
+
+    let keywords_section_with_comment = format!("{}\n{}", keywords_start, keyword_defs);
+
+    // Add test section after builtins
+    let test_section = r#"
 (* Test *)
 test_name = '"', { ANY_CHAR }, '"' ;
 test = KEYWORD_TEST, [ test_name ], block ;
+"#;
+
+    // Construct the final grammar with generated builtins
+    format!(
+        "{}{}{}{}{}{}{}{}",
+        before_keywords,
+        keywords_section_with_comment,
+        after_terminals,
+        builtins_stmt_rule,
+        builtin_stmt_rules,
+        builtins_expr_rule,
+        builtin_expr_rules,
+        test_section
+    )
+}

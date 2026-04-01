@@ -16,12 +16,14 @@ use crate::utils::function_interface::FunctionInterface;
 use crate::utils::function_metadata::FunctionMetadata;
 use crate::utils::ShellType;
 use heraclitus_compiler::prelude::*;
-use itertools::{Itertools, izip};
+use itertools::{izip, Itertools};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::Path;
 
 use crate::modules::block::Block;
+
+use amber_meta::AutoKeyword;
 
 #[derive(Debug, Clone)]
 pub struct FunctionDeclarationArgument {
@@ -32,7 +34,15 @@ pub struct FunctionDeclarationArgument {
     pub tok: Option<Token>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AutoKeyword)]
+#[keyword = "ref"]
+#[kind = "stmt"]
+#[allow(dead_code)]
+pub struct Ref;
+
+#[derive(Debug, Clone, AutoKeyword)]
+#[keyword = "fun"]
+#[kind = "stmt"]
 pub struct FunctionDeclaration {
     pub name: String,
     pub args: Vec<FunctionDeclarationArgument>,
@@ -467,10 +477,12 @@ impl TranslateModule for FunctionDeclaration {
             ));
 
             // Document in code function variant
-            let argument_types = izip!(self.args.iter(), function.args.iter()).map(|(arg, ty)| format!("{}: {}", arg.name, ty)).join(", ");
+            let argument_types = izip!(self.args.iter(), function.args.iter())
+                .map(|(arg, ty)| format!("{}: {}", arg.name, ty))
+                .join(", ");
             let function_name = &self.name;
             result.push(raw_fragment!("# {function_name}({argument_types})"));
-            
+
             // Parse the function body
             let name = raw_fragment!("{}{}__{}_v{}", prefix, self.name, self.id, index);
             // required for the local scope in ksh

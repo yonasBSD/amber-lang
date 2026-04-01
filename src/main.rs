@@ -7,6 +7,7 @@ mod stdlib;
 mod translate;
 mod utils;
 
+pub use crate::utils::grammar_ebnf;
 mod testing;
 
 pub mod built_info {
@@ -73,6 +74,8 @@ enum CommandKind {
     Completion,
     /// Run Amber tests
     Test(TestCommand),
+    /// Generate EBNF grammar
+    GrammarEbnf,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -439,6 +442,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         CommandKind::Completion => {
             handle_completion();
+            0
+        }
+        CommandKind::GrammarEbnf => {
+            let output = grammar_ebnf::generate_grammar_ebnf();
+            let output_path = PathBuf::from("grammar.ebnf");
+            std::fs::write(&output_path, output)?;
             0
         }
         CommandKind::Test(mut command) => {

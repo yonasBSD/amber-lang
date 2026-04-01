@@ -1,6 +1,7 @@
 use crate::modules::command::modifier::CommandModifier;
 use crate::modules::condition::failure_handler::FailureHandler;
 use crate::modules::expression::expr::Expr;
+
 use crate::modules::prelude::*;
 use crate::modules::types::{Type, Typed};
 use crate::utils::ParserMetadata;
@@ -8,7 +9,9 @@ use crate::utils::ShellType;
 use crate::{fragments, raw_fragment};
 use heraclitus_compiler::prelude::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AutoKeyword)]
+#[keyword = "ls"]
+#[kind = "builtin_expr"]
 pub struct Ls {
     value: Box<Option<Expr>>,
     all: Box<Option<Expr>>,
